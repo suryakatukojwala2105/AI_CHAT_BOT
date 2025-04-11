@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
 import os
+import re
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -29,7 +30,12 @@ FILTER_PHRASES = [
 ]
 
 def clean_gemini_reply(reply):
-    lines = reply.splitlines()
+    # Clean asterisks and markdown formatting
+    cleaned_text = re.sub(r'\*\*(.*?)\*\*', r'\1', reply)  # Remove bold markdown
+    cleaned_text = re.sub(r'\*(.*?)\*', r'\1', cleaned_text)  # Remove italic markdown
+    
+    # Filter unwanted phrases
+    lines = cleaned_text.splitlines()
     filtered = [
         line for line in lines
         if not any(phrase.lower() in line.lower() for phrase in FILTER_PHRASES)
@@ -96,7 +102,7 @@ def chat():
                 })
 
         # Check image
-        include_image = "image" in user_input.lower()
+        include_image = "image" in user_input.lower() or "picture" in user_input.lower() or "photo" in user_input.lower()
         image_url = fetch_image_url(user_input) if include_image else None
         
         # Get Gemini text response
