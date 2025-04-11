@@ -1,0 +1,127 @@
+
+import google.generativeai as genai
+import gradio as gr
+import time
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from pymongo import MongoClient
+import os
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+# MongoDB Setup
+mongo_client = MongoClient("mongodb+srv://UBER:UBER@cluster0.jagyi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+db = mongo_client["chatbot"]
+image_collection = db["images"]
+video_collection = db["videos"]
+pdf_collection = db["pdfs"]
+
+# Gemini API
+genai.configure(api_key="AIzaSyDwx8kkfjsvGH_J-98ho1L4u0id1LElJ58")
+model = genai.GenerativeModel(model_name="models/gemini-1.5-pro-latest")
+
+# Filter out unwanted Gemini phrases
+FILTER_PHRASES = [
+    "I can't directly create images",
+    "as a language model",
+    "within this text-based environment"
+]
+
+def clean_gemini_reply(reply):
+    lines = reply.splitlines()
+    filtered = [
+        line for line in lines
+        if not any(phrase.lower() in line.lower() for phrase in FILTER_PHRASES)
+    ]
+    return "\n".join(filtered).strip()
+
+# Fetch image from MongoDB
+def fetch_image_url(query):
+    for doc in image_collection.find():
+        if doc.get("keyword", "").lower() in query.lower():
+            return doc.get("image_url")
+    return None
+
+# Fetch YouTube video from MongoDB
+def fetch_youtube_video(query):
+    for doc in video_collection.find():
+        if doc.get("keyword", "").lower() in query.lower():
+            return {
+                "title": doc["title"],
+                "video_url": doc["video_url"],
+                "thumbnail": doc["thumbnail"]
+            }
+    return None
+
+# Fetch PDF from MongoDB
+def fetch_pdf(query):
+    for doc in pdf_collection.find():
+        if doc.get("keyword", "").lower() in query.lower():
+            return {
+                "title": doc["title"],
+                "pdf_url": doc["pdf_url"]
+            }
+    return None
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    data = request.json
+    user_input = data.get('message', '')
+    
+    try:
+        # Check PDF
+        if "pdf" in user_input.lower():
+            pdf_data = fetch_pdf(user_input)
+            if pdf_data:
+                return jsonify({
+                    "role": "assistant",
+                    "content": f"Here is the PDF document you requested.",
+                    "mediaType": "pdf",
+                    "mediaUrl": pdf_data["pdf_url"],
+                    "mediaTitle": pdf_data["title"]
+                })
+
+        # Check YouTube
+        if "video" in user_input.lower():
+            yt_data = fetch_youtube_video(user_input)
+            if yt_data:
+                return jsonify({
+                    "role": "assistant",
+                    "content": f"Here is the YouTube video you requested.",
+                    "mediaType": "video",
+                    "mediaUrl": yt_data["video_url"],
+                    "mediaTitle": yt_data["title"],
+                    "mediaThumbnail": yt_data["thumbnail"]
+                })
+
+        # Check image
+        include_image = "image" in user_input.lower()
+        image_url = fetch_image_url(user_input) if include_image else None
+        
+        # Get Gemini text response
+        response = model.generate_content(user_input)
+        gemini_reply = clean_gemini_reply(response.text.strip())
+        
+        # Return response with image if applicable
+        if image_url:
+            return jsonify({
+                "role": "assistant",
+                "content": gemini_reply,
+                "mediaType": "image",
+                "mediaUrl": image_url
+            })
+        else:
+            return jsonify({
+                "role": "assistant",
+                "content": gemini_reply
+            })
+
+    except Exception as e:
+        return jsonify({
+            "role": "assistant",
+            "content": f"Error: {str(e)}"
+        }), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

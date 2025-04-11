@@ -3,9 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, RefreshCw, ImageIcon, FileText, Youtube } from "lucide-react";
+import { Loader2, Send, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ChatMessage from "./ChatMessage";
 import EmptyState from "./EmptyState";
@@ -50,12 +49,39 @@ const ChatInterface: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // This would be replaced with your actual backend call
-      // For now, we'll simulate a response with mock data
+      // For demonstration, we'll use a mock API endpoint
+      // In a real app, replace with your actual server URL
+      const backendUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://your-production-server.com/api/chat'
+        : 'http://localhost:5000/api/chat';
+      
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: inputValue }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const botResponse = await response.json();
+      setMessages(prev => [...prev, botResponse]);
+    } catch (error) {
+      console.error('Error fetching from server:', error);
+      toast({
+        title: "Error",
+        description: "Failed to get a response from the server. Using mock data instead.",
+        variant: "destructive"
+      });
+      
+      // Fallback to mock data if server is unavailable
       setTimeout(() => {
         let botResponse: ChatMessage = {
           role: 'assistant',
-          content: 'This is a test response. In a real implementation, this would come from your Gemini backend.'
+          content: 'This is a test response. The server appears to be offline, so this is a mock response.'
         };
 
         // Simulate media responses based on user input
@@ -86,14 +112,8 @@ const ChatInterface: React.FC = () => {
         }
 
         setMessages(prev => [...prev, botResponse]);
-        setIsLoading(false);
-      }, 1500);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to get a response from the server.",
-        variant: "destructive"
-      });
+      }, 1000);
+    } finally {
       setIsLoading(false);
     }
   };
