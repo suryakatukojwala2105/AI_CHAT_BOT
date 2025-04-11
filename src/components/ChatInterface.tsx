@@ -8,6 +8,7 @@ import { Loader2, Send, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ChatMessage from "./ChatMessage";
 import EmptyState from "./EmptyState";
+import LoadingAnimation from "./LoadingAnimation";
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -23,6 +24,7 @@ const ChatInterface: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMockMode, setIsMockMode] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -127,13 +129,17 @@ const ChatInterface: React.FC = () => {
     setMessages([]);
   };
 
+  if (showIntro) {
+    return <LoadingAnimation onComplete={() => setShowIntro(false)} />;
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Chat header */}
       <div className="border-b px-6 py-3 flex justify-between items-center bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-t-lg shadow-md">
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-full bg-green-400 animate-pulse"></div>
-          <h2 className="text-xl font-semibold">Gemini Chatbot</h2>
+          <h2 className="text-xl font-semibold">Chat with Aura</h2>
         </div>
         <div className="flex items-center gap-2">
           {isMockMode && (
@@ -167,8 +173,11 @@ const ChatInterface: React.FC = () => {
         )}
         {isLoading && (
           <div className="flex flex-col items-center justify-center p-4 gap-2">
-            <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
-            <p className="text-sm text-slate-500 animate-pulse">Gemini is thinking...</p>
+            <div className="relative">
+              <div className="absolute inset-0 blur-lg bg-indigo-200 rounded-full animate-pulse"></div>
+              <Loader2 className="h-8 w-8 text-indigo-500 animate-spin relative z-10" />
+            </div>
+            <p className="text-sm text-slate-500 animate-pulse">Aura is thinking...</p>
           </div>
         )}
         <div ref={messagesEndRef} />

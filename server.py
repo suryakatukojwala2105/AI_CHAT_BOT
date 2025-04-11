@@ -18,11 +18,11 @@ image_collection = db["images"]
 video_collection = db["videos"]
 pdf_collection = db["pdfs"]
 
-# Gemini API
+# Gemini API (now calling it Aura AI)
 genai.configure(api_key="AIzaSyDwx8kkfjsvGH_J-98ho1L4u0id1LElJ58")
 model = genai.GenerativeModel(model_name="models/gemini-1.5-pro-latest")
 
-# Filter out unwanted Gemini phrases
+# Filter out unwanted phrases
 FILTER_PHRASES = [
     "I can't directly create images",
     "as a language model",
