@@ -76,6 +76,22 @@ def chat():
     user_input = data.get('message', '')
     
     try:
+        # Check if user is asking for an image
+        image_requested = ("image" in user_input.lower() or 
+                          "picture" in user_input.lower() or 
+                          "photo" in user_input.lower())
+        
+        # Check for image first if specifically requested
+        if image_requested:
+            image_url = fetch_image_url(user_input)
+            if image_url:
+                return jsonify({
+                    "role": "assistant",
+                    "content": "",  # No text for image-only responses
+                    "mediaType": "image",
+                    "mediaUrl": image_url
+                })
+
         # Check PDF
         if "pdf" in user_input.lower():
             pdf_data = fetch_pdf(user_input)
@@ -101,27 +117,26 @@ def chat():
                     "mediaThumbnail": yt_data["thumbnail"]
                 })
 
-        # Check image
-        include_image = "image" in user_input.lower() or "picture" in user_input.lower() or "photo" in user_input.lower()
-        image_url = fetch_image_url(user_input) if include_image else None
-        
-        # Get Gemini text response
+        # If we've reached here, use Gemini for text response
         response = model.generate_content(user_input)
         gemini_reply = clean_gemini_reply(response.text.strip())
         
-        # Return response with image if applicable
-        if image_url:
-            return jsonify({
-                "role": "assistant",
-                "content": gemini_reply,
-                "mediaType": "image",
-                "mediaUrl": image_url
-            })
-        else:
-            return jsonify({
-                "role": "assistant",
-                "content": gemini_reply
-            })
+        # For non-image requests, we can still include an image if available
+        if not image_requested:
+            image_url = fetch_image_url(user_input)
+            if image_url:
+                return jsonify({
+                    "role": "assistant",
+                    "content": gemini_reply,
+                    "mediaType": "image",
+                    "mediaUrl": image_url
+                })
+        
+        # Default text-only response
+        return jsonify({
+            "role": "assistant",
+            "content": gemini_reply
+        })
 
     except Exception as e:
         return jsonify({

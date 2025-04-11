@@ -4,7 +4,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, Send, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ChatMessage from "./ChatMessage";
 import EmptyState from "./EmptyState";
@@ -17,6 +17,7 @@ interface ChatMessage {
   mediaUrl?: string;
   mediaTitle?: string;
   mediaThumbnail?: string;
+  isTyping?: boolean;
 }
 
 const ChatInterface: React.FC = () => {
@@ -72,7 +73,36 @@ const ChatInterface: React.FC = () => {
       }
 
       const botResponse = await response.json();
-      setMessages(prev => [...prev, botResponse]);
+      
+      // Check if it's an image-only response
+      const isImageRequest = 
+        inputValue.toLowerCase().includes('image') || 
+        inputValue.toLowerCase().includes('picture') || 
+        inputValue.toLowerCase().includes('photo');
+      
+      if (isImageRequest && !botResponse.mediaType) {
+        // If user asked for an image but we don't have one, proceed normally
+        setMessages(prev => [...prev, { ...botResponse, isTyping: true }]);
+      } else if (isImageRequest && botResponse.mediaType === 'image') {
+        // If user asked for an image and we have one, show only the image
+        setMessages(prev => [...prev, { 
+          ...botResponse, 
+          content: '', // Empty content to just show image
+        }]);
+      } else {
+        // For all other responses, show with typing animation
+        setMessages(prev => [...prev, { ...botResponse, isTyping: true }]);
+        
+        // After a delay, update the message to remove the typing indicator
+        setTimeout(() => {
+          setMessages(prevMessages => 
+            prevMessages.map((msg, idx) => 
+              idx === prevMessages.length - 1 ? { ...msg, isTyping: false } : msg
+            )
+          );
+        }, botResponse.content.length * 20 + 500); // Typing speed plus a small buffer
+      }
+      
       setIsMockMode(false);
     } catch (error) {
       console.error('Error fetching from server:', error);
@@ -86,18 +116,26 @@ const ChatInterface: React.FC = () => {
       
       // Fallback to mock data if server is unavailable
       setTimeout(() => {
+        // Check if user is requesting an image
+        const isImageRequest = 
+          inputValue.toLowerCase().includes('image') || 
+          inputValue.toLowerCase().includes('picture') || 
+          inputValue.toLowerCase().includes('photo');
+
         let botResponse: ChatMessage = {
           role: 'assistant',
-          content: 'This is a test response. The server appears to be offline, so this is a mock response.'
+          content: 'This is a test response. The server appears to be offline, so this is a mock response.',
+          isTyping: true
         };
 
         // Simulate media responses based on user input
-        if (inputValue.toLowerCase().includes('image') || inputValue.toLowerCase().includes('picture')) {
+        if (isImageRequest) {
           botResponse = {
             ...botResponse,
             mediaType: 'image',
             mediaUrl: 'https://picsum.photos/800/500',
-            content: 'Here is the image you requested!'
+            content: '', // Empty content for image-only response
+            isTyping: false
           };
         } else if (inputValue.toLowerCase().includes('pdf')) {
           botResponse = {
@@ -105,7 +143,8 @@ const ChatInterface: React.FC = () => {
             mediaType: 'pdf',
             mediaUrl: 'https://www.africau.edu/images/default/sample.pdf',
             mediaTitle: 'Sample PDF Document',
-            content: 'Here is the PDF document you requested. You can view it below or click to open in a new tab.'
+            content: 'Here is the PDF document you requested. You can view it below or click to open in a new tab.',
+            isTyping: true
           };
         } else if (inputValue.toLowerCase().includes('video')) {
           botResponse = {
@@ -114,11 +153,23 @@ const ChatInterface: React.FC = () => {
             mediaUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
             mediaTitle: 'Sample YouTube Video',
             mediaThumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-            content: 'Here is the YouTube video you requested. Click on the thumbnail to watch it.'
+            content: 'Here is the YouTube video you requested. Click on the thumbnail to watch it.',
+            isTyping: true
           };
         }
 
         setMessages(prev => [...prev, botResponse]);
+
+        // Remove typing animation after delay
+        if (!isImageRequest) {
+          setTimeout(() => {
+            setMessages(prevMessages => 
+              prevMessages.map((msg, idx) => 
+                idx === prevMessages.length - 1 ? { ...msg, isTyping: false } : msg
+              )
+            );
+          }, botResponse.content.length * 20 + 500);
+        }
       }, 1000);
     } finally {
       setIsLoading(false);

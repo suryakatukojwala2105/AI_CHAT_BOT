@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { ImageIcon, FileText, Youtube, ExternalLink, Download, MaximizeIcon, MinimizeIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ interface ChatMessageProps {
     mediaUrl?: string;
     mediaTitle?: string;
     mediaThumbnail?: string;
+    isTyping?: boolean;
   };
   isLastMessage: boolean;
 }
@@ -20,7 +21,35 @@ interface ChatMessageProps {
 const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLastMessage }) => {
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [isImageExpanded, setIsImageExpanded] = useState(false);
+  const [displayedText, setDisplayedText] = useState('');
+  const [isTypingComplete, setIsTypingComplete] = useState(!message.isTyping);
   const isUser = message.role === 'user';
+
+  // Typing animation effect
+  useEffect(() => {
+    if (!isUser && message.isTyping && message.content && !message.mediaType) {
+      setDisplayedText('');
+      setIsTypingComplete(false);
+      
+      let index = 0;
+      const textContent = message.content;
+      
+      const typingInterval = setInterval(() => {
+        if (index < textContent.length) {
+          setDisplayedText(prev => prev + textContent.charAt(index));
+          index++;
+        } else {
+          clearInterval(typingInterval);
+          setIsTypingComplete(true);
+        }
+      }, 20); // Speed of typing
+      
+      return () => clearInterval(typingInterval);
+    } else if (!message.isTyping) {
+      setDisplayedText(message.content);
+      setIsTypingComplete(true);
+    }
+  }, [message.content, message.isTyping, isUser, message.mediaType]);
 
   const openExternalLink = (url: string) => {
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -187,7 +216,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLastMessage }) => 
             isUser ? "bg-indigo-600" : "bg-purple-600"
           )}
         >
-          {isUser ? 'U' : 'G'}
+          {isUser ? 'U' : 'A'}
         </div>
         <div 
           className={cn(
@@ -197,7 +226,20 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLastMessage }) => 
               : "bg-white text-slate-800 border rounded-tl-none"
           )}
         >
-          <div className="whitespace-pre-wrap">{message.content}</div>
+          {(!message.mediaType || (message.mediaType && message.content)) && (
+            <div className="whitespace-pre-wrap">
+              {isUser ? message.content : (
+                message.isTyping ? (
+                  <>
+                    {displayedText}
+                    {!isTypingComplete && (
+                      <span className="inline-block w-2 h-4 bg-indigo-500 ml-1 animate-pulse"></span>
+                    )}
+                  </>
+                ) : message.content
+              )}
+            </div>
+          )}
           {renderMedia()}
         </div>
       </div>
