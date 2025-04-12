@@ -76,67 +76,46 @@ def chat():
     user_input = data.get('message', '')
     
     try:
-        # Check if user is asking for an image
+        # First, always get the text response from Gemini
+        response = model.generate_content(user_input)
+        gemini_reply = clean_gemini_reply(response.text.strip())
+        
+        # Initialize response object with the text response
+        response_obj = {
+            "role": "assistant",
+            "content": gemini_reply
+        }
+        
+        # Check for media (image, PDF, video) and add if available
         image_requested = ("image" in user_input.lower() or 
                           "picture" in user_input.lower() or 
                           "photo" in user_input.lower())
         
-        # Check for image first if specifically requested
+        # Check for image
         if image_requested:
             image_url = fetch_image_url(user_input)
             if image_url:
-                return jsonify({
-                    "role": "assistant",
-                    "content": "",  # No text for image-only responses
-                    "mediaType": "image",
-                    "mediaUrl": image_url
-                })
-
-        # Check PDF
-        if "pdf" in user_input.lower():
+                response_obj["mediaType"] = "image"
+                response_obj["mediaUrl"] = image_url
+        
+        # Check for PDF
+        elif "pdf" in user_input.lower():
             pdf_data = fetch_pdf(user_input)
             if pdf_data:
-                return jsonify({
-                    "role": "assistant",
-                    "content": f"Here is the PDF document you requested.",
-                    "mediaType": "pdf",
-                    "mediaUrl": pdf_data["pdf_url"],
-                    "mediaTitle": pdf_data["title"]
-                })
-
-        # Check YouTube
-        if "video" in user_input.lower():
+                response_obj["mediaType"] = "pdf"
+                response_obj["mediaUrl"] = pdf_data["pdf_url"]
+                response_obj["mediaTitle"] = pdf_data["title"]
+        
+        # Check for YouTube video
+        elif "video" in user_input.lower():
             yt_data = fetch_youtube_video(user_input)
             if yt_data:
-                return jsonify({
-                    "role": "assistant",
-                    "content": f"Here is the YouTube video you requested.",
-                    "mediaType": "video",
-                    "mediaUrl": yt_data["video_url"],
-                    "mediaTitle": yt_data["title"],
-                    "mediaThumbnail": yt_data["thumbnail"]
-                })
-
-        # If we've reached here, use Gemini for text response
-        response = model.generate_content(user_input)
-        gemini_reply = clean_gemini_reply(response.text.strip())
+                response_obj["mediaType"] = "video"
+                response_obj["mediaUrl"] = yt_data["video_url"]
+                response_obj["mediaTitle"] = yt_data["title"]
+                response_obj["mediaThumbnail"] = yt_data["thumbnail"]
         
-        # For non-image requests, we can still include an image if available
-        if not image_requested:
-            image_url = fetch_image_url(user_input)
-            if image_url:
-                return jsonify({
-                    "role": "assistant",
-                    "content": gemini_reply,
-                    "mediaType": "image",
-                    "mediaUrl": image_url
-                })
-        
-        # Default text-only response
-        return jsonify({
-            "role": "assistant",
-            "content": gemini_reply
-        })
+        return jsonify(response_obj)
 
     except Exception as e:
         return jsonify({
