@@ -76,7 +76,30 @@ def chat():
     user_input = data.get('message', '')
     
     try:
-        # First, always get the text response from Gemini
+        # Check for image requests - provide image only, no text
+        image_requested = ("image" in user_input.lower() or 
+                          "picture" in user_input.lower() or 
+                          "photo" in user_input.lower())
+        
+        if image_requested:
+            image_url = fetch_image_url(user_input)
+            if image_url:
+                return jsonify({
+                    "role": "assistant",
+                    "content": "",  # Empty content for image-only responses
+                    "mediaType": "image",
+                    "mediaUrl": image_url
+                })
+            else:
+                # If no image found but user requested one, get text response
+                response = model.generate_content(user_input)
+                gemini_reply = clean_gemini_reply(response.text.strip())
+                return jsonify({
+                    "role": "assistant",
+                    "content": gemini_reply
+                })
+        
+        # For other media types, get the text response first
         response = model.generate_content(user_input)
         gemini_reply = clean_gemini_reply(response.text.strip())
         
@@ -86,20 +109,8 @@ def chat():
             "content": gemini_reply
         }
         
-        # Check for media (image, PDF, video) and add if available
-        image_requested = ("image" in user_input.lower() or 
-                          "picture" in user_input.lower() or 
-                          "photo" in user_input.lower())
-        
-        # Check for image
-        if image_requested:
-            image_url = fetch_image_url(user_input)
-            if image_url:
-                response_obj["mediaType"] = "image"
-                response_obj["mediaUrl"] = image_url
-        
         # Check for PDF
-        elif "pdf" in user_input.lower():
+        if "pdf" in user_input.lower():
             pdf_data = fetch_pdf(user_input)
             if pdf_data:
                 response_obj["mediaType"] = "pdf"
